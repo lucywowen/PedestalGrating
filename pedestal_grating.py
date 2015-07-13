@@ -2,8 +2,8 @@
 
 '''A grating stimulus for psychopy with a luminance pedestal.
 
-This makes it possible for a grating to fluctuate a background value that is not
-mean gray, a.k.a color=0.
+This makes it possible for a grating to fluctuate around a background value that
+is not mean gray, a.k.a color=0.
 
 This is based on code by Jonathan Peirce, in particular it is based on his
 shader code and 'GratingStim' class. The original code carries the following
@@ -32,7 +32,8 @@ from psychopy import _shadersPyglet as _shaders
 
 # Framgent shader for the gabor stimulus. This is needed to add the pedestal to the
 # color values for each location. I'm keeping it in this file to make the stimulus
-# fairly self contained and to avoid messing with anything else.
+# fairly self contained and to avoid messing with anything else. Almost a one to
+# one copy of the original psychopy shader.
 fragSignedColorTexMask = '''
     uniform sampler2D texture, mask;
     uniform float pedestal;
