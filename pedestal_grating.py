@@ -28,13 +28,14 @@ from psychopy.visual.grating import GratingStim
 from psychopy.tools.attributetools import attributeSetter
 
 import numpy
-from psychopy import _shadersPyglet as _shaders
+#from psychopy import _shadersPyglet as _shaders
+from psychopy.visual import shaders
 
 # Framgent shader for the gabor stimulus. This is needed to add the pedestal to the
 # color values for each location. I'm keeping it in this file to make the stimulus
 # fairly self contained and to avoid messing with anything else. Almost a one to
 # one copy of the original psychopy shader.
-fragSignedColorTexMask = '''
+fragSignedColorTexMask_pedestal = '''
     uniform sampler2D texture, mask;
     uniform float pedestal;
     void main() {
@@ -72,7 +73,6 @@ class PedestalGratingStim(GratingStim, TextureMixin, ColorMixin, ContainerMixin)
                 opacity=opacity, depth=depth, rgbPedestal=rgbPedestal,
                 interpolate=interpolate, autoDraw=autoDraw, maskParams=maskParams)
         self.pedestal = pedestal
-        self._progSignedTexMask = _shaders.compileProgram(_shaders.vertSimple, fragSignedColorTexMask)
 
     @attributeSetter
     def pedestal(self, value):
@@ -92,55 +92,62 @@ class PedestalGratingStim(GratingStim, TextureMixin, ColorMixin, ContainerMixin)
         change is that the pedestal value is made available to the fragment
         shader used for drawing the stimulus.
         """
+        self.win._progSignedTexMask = shaders.compileProgram(shaders.vertSimple, fragSignedColorTexMask_pedestal)
+
         self._needUpdate = False
         GL.glNewList(self._listID,GL.GL_COMPILE)
         #setup the shaderprogram
-        GL.glUseProgram(self._progSignedTexMask)
-        GL.glUniform1i(GL.glGetUniformLocation(self._progSignedTexMask, "texture"), 0) #set the texture to be texture unit 0
-        GL.glUniform1i(GL.glGetUniformLocation(self._progSignedTexMask, "mask"), 1)  # mask is texture unit 1
-        GL.glUniform1f(GL.glGetUniformLocation(self._progSignedTexMask, "pedestal"), self.pedestal)  # mask is texture unit 1
-
-        #mask
+        _prog = self.win._progSignedTexMask
+        GL.glUseProgram(_prog)
+        # set the texture to be texture unit 0
+        GL.glUniform1i(GL.glGetUniformLocation(_prog, b"texture"), 0)
+        # mask is texture unit 1
+        GL.glUniform1i(GL.glGetUniformLocation(_prog, b"mask"), 1)
+        GL.glUniform1f(GL.glGetUniformLocation(_prog, b"pedestal"), self.pedestal)
+        # mask
+        # mask
         GL.glActiveTexture(GL.GL_TEXTURE1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self._maskID)
-        GL.glEnable(GL.GL_TEXTURE_2D)#implicitly disables 1D
+        GL.glEnable(GL.GL_TEXTURE_2D)  # implicitly disables 1D
 
-        #main texture
+        # main texture
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self._texID)
         GL.glEnable(GL.GL_TEXTURE_2D)
 
-        Ltex = -self._cycles[0]/2 - self.phase[0]+0.5
-        Rtex = +self._cycles[0]/2 - self.phase[0]+0.5
-        Ttex = +self._cycles[1]/2 - self.phase[1]+0.5
-        Btex = -self._cycles[1]/2 - self.phase[1]+0.5
-        Lmask=Bmask= 0.0; Tmask=Rmask=1.0#mask
+        Ltex = (-self._cycles[0] / 2) - self.phase[0] + 0.5
+        Rtex = (+self._cycles[0] / 2) - self.phase[0] + 0.5
+        Ttex = (+self._cycles[1] / 2) - self.phase[1] + 0.5
+        Btex = (-self._cycles[1] / 2) - self.phase[1] + 0.5
+        Lmask = Bmask = 0.0
+        Tmask = Rmask = 1.0  # mask
 
-        vertsPix = self.verticesPix #access just once because it's slower than basic property
-        GL.glBegin(GL.GL_QUADS)                  # draw a 4 sided polygon
+        # access just once because it's slower than basic property
+        vertsPix = self.verticesPix
+        GL.glBegin(GL.GL_QUADS)  # draw a 4 sided polygon
         # right bottom
-        GL.glMultiTexCoord2f(GL.GL_TEXTURE0,Rtex, Btex)
-        GL.glMultiTexCoord2f(GL.GL_TEXTURE1,Rmask,Bmask)
-        GL.glVertex2f(vertsPix[0,0], vertsPix[0,1])
+        GL.glMultiTexCoord2f(GL.GL_TEXTURE0, Rtex, Btex)
+        GL.glMultiTexCoord2f(GL.GL_TEXTURE1, Rmask, Bmask)
+        GL.glVertex2f(vertsPix[0, 0], vertsPix[0, 1])
         # left bottom
-        GL.glMultiTexCoord2f(GL.GL_TEXTURE0,Ltex,Btex)
-        GL.glMultiTexCoord2f(GL.GL_TEXTURE1,Lmask,Bmask)
-        GL.glVertex2f(vertsPix[1,0], vertsPix[1,1])
+        GL.glMultiTexCoord2f(GL.GL_TEXTURE0, Ltex, Btex)
+        GL.glMultiTexCoord2f(GL.GL_TEXTURE1, Lmask, Bmask)
+        GL.glVertex2f(vertsPix[1, 0], vertsPix[1, 1])
         # left top
-        GL.glMultiTexCoord2f(GL.GL_TEXTURE0,Ltex,Ttex)
-        GL.glMultiTexCoord2f(GL.GL_TEXTURE1,Lmask,Tmask)
-        GL.glVertex2f(vertsPix[2,0], vertsPix[2,1])
+        GL.glMultiTexCoord2f(GL.GL_TEXTURE0, Ltex, Ttex)
+        GL.glMultiTexCoord2f(GL.GL_TEXTURE1, Lmask, Tmask)
+        GL.glVertex2f(vertsPix[2, 0], vertsPix[2, 1])
         # right top
-        GL.glMultiTexCoord2f(GL.GL_TEXTURE0,Rtex,Ttex)
-        GL.glMultiTexCoord2f(GL.GL_TEXTURE1,Rmask,Tmask)
-        GL.glVertex2f(vertsPix[3,0], vertsPix[3,1])
+        GL.glMultiTexCoord2f(GL.GL_TEXTURE0, Rtex, Ttex)
+        GL.glMultiTexCoord2f(GL.GL_TEXTURE1, Rmask, Tmask)
+        GL.glVertex2f(vertsPix[3, 0], vertsPix[3, 1])
         GL.glEnd()
 
-        #unbind the textures
+        # unbind the textures
         GL.glActiveTexture(GL.GL_TEXTURE1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
-        GL.glDisable(GL.GL_TEXTURE_2D)#implicitly disables 1D
-        #main texture
+        GL.glDisable(GL.GL_TEXTURE_2D)  # implicitly disables 1D
+        # main texture
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
         GL.glDisable(GL.GL_TEXTURE_2D)
